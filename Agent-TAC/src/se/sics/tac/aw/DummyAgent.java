@@ -130,6 +130,9 @@ import se.sics.tac.util.ArgEnumerator;
 import java.util.logging.*;
 
 public class DummyAgent extends AgentImpl {
+	
+	
+	
 
   private static final Logger log =
     Logger.getLogger(DummyAgent.class.getName());
