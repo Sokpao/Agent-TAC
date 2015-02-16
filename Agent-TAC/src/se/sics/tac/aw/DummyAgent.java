@@ -139,11 +139,13 @@ public class DummyAgent extends AgentImpl {
 
 	private static final boolean DEBUG = true;
 
-	private static final int FLIGHT_THRESHOLD = 150;
+	private static final int FLIGHT_THRESHOLD = 300; // initial bid price
 
-	private static final int FLIGHT_MAXPRICE = 1000;
+	private static final int FLIGHT_MAXPRICE = 800;
 
-	private static final int FLIGHT_TIMELIMIT = 200000;
+	private static final int FLIGHT_TIMELIMIT = 600000; // ten minutes
+
+	private static final int FLIGHT_PUNISHMENT = 100; // costs of changing date
 
 	private float[] prices;
 
@@ -360,22 +362,98 @@ public class DummyAgent extends AgentImpl {
 		if (agent.getAuctionCategory(i) == TACAgent.CAT_FLIGHT) {
 			if (alloc > 0) {
 				log.severe("ASK:" + agent.getQuote(i).getAskPrice());
-				prices[i] = (((float) (agent.getGameTime() * (FLIGHT_MAXPRICE))) / ((float) agent
-						.getGameLength()));
+				// prices[i] = (((float) (agent.getGameTime() *
+				// (FLIGHT_MAXPRICE))) / ((float) agent
+				// .getGameLength()));
 
+				int id = -1;
 				if (agent.getGameTimeLeft() <= FLIGHT_TIMELIMIT) {
-					prices[i] = FLIGHT_MAXPRICE;
+					id = checkForDateChange(i);
 				}
 
-				Bid bid = new Bid(i);
-				bid.addBidPoint(alloc, prices[i]);
+				Bid bid = new Bid(id);
+				bid.addBidPoint(alloc, prices[id]);
 				if (DEBUG) {
 					log.severe("submitting bid with alloc="
-							+ agent.getAllocation(i) + " own="
-							+ agent.getOwn(i));
+							+ agent.getAllocation(id) + " own="
+							+ agent.getOwn(id));
 				}
 				agent.submitBid(bid);
 			}
 		}
+	}
+
+	/**
+	 * Method checks, if its actually better to change the flight date, if the
+	 * saved amount is greater than the clients dissatisfaction.
+	 * 
+	 * @param i
+	 *            the auction id
+	 * 
+	 * @return the new auction id for the specific goods
+	 */
+	private int checkForDateChange(int i) {
+		int alloc = agent.getAllocation(i) - agent.getOwn(i);
+		if (agent.getAuctionCategory(i) == TACAgent.CAT_FLIGHT && alloc > 0) {
+			int type = agent.getAuctionType(i);
+			int change = 0;
+			// fly one day later if inflight, one date earlier if outflight
+			if (type == TACAgent.TYPE_INFLIGHT)
+				change = 1;
+			else if (type == TACAgent.TYPE_OUTFLIGHT)
+				change = -1;
+
+			int altauction = agent.getAuctionFor(agent.getAuctionCategory(i),
+					agent.getAuctionType(i), agent.getAuctionDay(i) + change);
+			// if the price difference is greater than the dissatisfaction value
+			if (agent.getQuote(i).getAskPrice()
+					- agent.getQuote(altauction).getAskPrice() > FLIGHT_PUNISHMENT) {
+				// get flight on other day
+				agent.setAllocation(altauction, agent.getAllocation(altauction)
+						+ alloc);
+				agent.setAllocation(i, agent.getAllocation(i) - alloc);
+
+				// decrease allocation for hotels
+				// for now it just decreases any allocs it finds (starting with
+				// good hotel) independent of preferences
+				int cheap = agent.getAuctionFor(TACAgent.CAT_HOTEL,
+						TACAgent.TYPE_CHEAP_HOTEL, agent.getAuctionDay(i));
+				int exp = agent.getAuctionFor(TACAgent.CAT_HOTEL,
+						TACAgent.TYPE_GOOD_HOTEL, agent.getAuctionDay(i));
+				int curralloc = agent.getAllocation(exp);
+				if (curralloc >= alloc) {
+					agent.setAllocation(exp, curralloc - alloc);
+				} else {
+					alloc = alloc - curralloc;
+					agent.setAllocation(exp, 0);
+					agent.setAllocation(cheap, agent.getAllocation(cheap)
+							- alloc);
+				}
+				// inform of update
+				allocationUpdated(cheap, exp);
+
+				// change the auction id to handle
+				i = altauction;
+			}
+
+		}
+		prices[i] = FLIGHT_MAXPRICE;
+		return i;
+
+	}
+
+	/**
+	 * Method is called, if the allocation of the given auctions was updated.
+	 * (E.g. the flight were scheduled different and the allocation for this
+	 * hotels may have or may have not changed (increasing or decreasing))
+	 * 
+	 * @param cheap
+	 *            the auction id for the cheap hotel
+	 * @param exp
+	 *            the auction id for the good hotel
+	 */
+	private void allocationUpdated(int cheap, int exp) {
+		// FIXME @DAVID Delete unused bids, by adapting the bid count to the
+		// allocation
 	}
 }
