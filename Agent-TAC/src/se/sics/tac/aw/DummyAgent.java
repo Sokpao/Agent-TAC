@@ -147,6 +147,16 @@ public class DummyAgent extends AgentImpl {
 
 	private static final int FLIGHT_PUNISHMENT = 100; // costs of changing date
 
+	private static final int HOTEL_INCREMENT = 10;
+
+	private static final float HOTEL_OVERBID_FACTOR = 1.5f;
+
+	private static final int HOTEL_SATISFACTION_THRESHOLD = 100; // split in two
+																	// groups
+
+	private static final float HOTEL_MAXPRICE = 750; // maxiumum price per room
+														// and night
+
 	private float[] prices;
 
 	protected void init(ArgEnumerator args) {
@@ -162,7 +172,16 @@ public class DummyAgent extends AgentImpl {
 					&& quote.getHQW() < alloc) {
 				Bid bid = new Bid(auction);
 				// Can not own anything in hotel auctions...
-				prices[auction] = quote.getAskPrice() + 50;
+				// price pertubation fktn
+				prices[auction] = quote.getAskPrice() * HOTEL_OVERBID_FACTOR
+						+ (alloc - 1) * HOTEL_INCREMENT;
+				// dont buy for a higher price than 500
+				if (prices[auction] > HOTEL_MAXPRICE) {
+					agent.setAllocation(auction, 0);
+					prices[auction] = 0;
+					alloc = 0;
+					allocationUpdated(auction);
+				}
 				bid.addBidPoint(alloc, prices[auction]);
 				if (DEBUG) {
 					log.finest("submitting bid with alloc="
@@ -289,9 +308,9 @@ public class DummyAgent extends AgentImpl {
 					TACAgent.TYPE_OUTFLIGHT, outFlight);
 			agent.setAllocation(auction, agent.getAllocation(auction) + 1);
 
-			// if the hotel value is greater than 70 we will select the
+			// if the hotel value is greater than 250 we will select the
 			// expensive hotel (type = 1)
-			if (hotel > 70) {
+			if (hotel > HOTEL_SATISFACTION_THRESHOLD) {
 				type = TACAgent.TYPE_GOOD_HOTEL;
 			} else {
 				type = TACAgent.TYPE_CHEAP_HOTEL;
@@ -430,7 +449,8 @@ public class DummyAgent extends AgentImpl {
 							- alloc);
 				}
 				// inform of update
-				allocationUpdated(cheap, exp);
+				allocationUpdated(cheap);
+				allocationUpdated(exp);
 
 				// change the auction id to handle
 				i = altauction;
@@ -447,13 +467,20 @@ public class DummyAgent extends AgentImpl {
 	 * (E.g. the flight were scheduled different and the allocation for this
 	 * hotels may have or may have not changed (increasing or decreasing))
 	 * 
-	 * @param cheap
-	 *            the auction id for the cheap hotel
-	 * @param exp
-	 *            the auction id for the good hotel
+	 * @param id
+	 *            the auction id
 	 */
-	private void allocationUpdated(int cheap, int exp) {
-		// FIXME @DAVID Delete unused bids, by adapting the bid count to the
-		// allocation
+	private void allocationUpdated(int id) {
+		int need = agent.getAllocation(id) - agent.getOwn(id);
+		int bids = agent.getBid(id).getQuantity();
+		if (need != bids) {
+			Bid bid = new Bid(id);
+			bid.addBidPoint(need, prices[id]);
+			if (DEBUG) {
+				log.finest("submitting bid with alloc="
+						+ agent.getAllocation(id) + " own=" + agent.getOwn(id));
+			}
+			agent.replaceBid(agent.getBid(id), bid);
+		}
 	}
 }
