@@ -146,9 +146,13 @@ public class DummyAgent extends AgentImpl {
 	private static final int FLIGHT_TIMELIMIT = 200000;
 
 	private float[] prices;
+        
+        //stores the utility of tickets for each client
+        //private int[][] enterUtility;
 
 	protected void init(ArgEnumerator args) {
 		prices = new float[agent.getAuctionNo()];
+                //enterUtility = new int[8][3];
 	}
 
 	public void quoteUpdated(Quote quote) {
@@ -169,23 +173,67 @@ public class DummyAgent extends AgentImpl {
 				}
 				agent.submitBid(bid);
 			}
-		} else if (auctionCategory == TACAgent.CAT_ENTERTAINMENT) {
+                        
+		} else if (auctionCategory == TACAgent.CAT_ENTERTAINMENT) { //Entertainment auction
+                    
+                        //calculates the number of tickets we want to buy or sell and stores it in alloc
 			int alloc = agent.getAllocation(auction) - agent.getOwn(auction);
-			if (alloc != 0) {
-				Bid bid = new Bid(auction);
-				if (alloc < 0)
-					prices[auction] = 200f - (agent.getGameTime() * 120f) / 720000;
-				else
-					prices[auction] = 50f + (agent.getGameTime() * 100f) / 720000;
-				bid.addBidPoint(alloc, prices[auction]);
-				if (DEBUG) {
-					log.finest("submitting bid with alloc="
-							+ agent.getAllocation(auction) + " own="
-							+ agent.getOwn(auction));
-				}
-				agent.submitBid(bid);
+			
+                        if (alloc != 0) { //there are negotiations to be made
+                            
+                            Bid bid = new Bid(auction);
+
+                            if (alloc < 0){ //we have tickets to sell
+                                prices[auction] = 200f - (agent.getGameTime() * 120f) / 720000;
+                                
+                                if(agent.getGameTimeLeft() < 120000){ //if less than 2 minutes remaining
+                                    prices[auction] = 40f;
+                                } else if (agent.getGameTimeLeft() < 60000){
+                                    prices[auction] = 20f;
+                                } else if (agent.getGameTimeLeft() < 30000){
+                                    prices[auction] = 10f;
+                                }
+                                
+                                if (prices[auction] <0){
+                                    prices[auction] = 100f;
+                                }
+                                
+                                if(alloc==-1)
+                                    bid.addBidPoint(alloc, prices[auction]); //place bid
+                                else if (alloc==-2){
+                                    bid.addBidPoint(-1, prices[auction]); //place bid
+                                    bid.addBidPoint(-1, prices[auction] + 10);
+                                } else {
+                                    bid.addBidPoint(alloc+2, prices[auction]); //place bid
+                                    bid.addBidPoint(-1, prices[auction] + 10);
+                                    bid.addBidPoint(-1, Math.max(prices[auction] - 40, 80));
+                                }
+
+                            } else {//we want to buy tickets
+                                prices[auction] = Math.min((50f + (agent.getGameTime() * 100f) / 720000), 121);
+                                
+                                if(alloc==1){
+                                    bid.addBidPoint(alloc, Math.min(prices[auction], 80)); //place bid
+                                } else if (alloc ==2){
+                                    bid.addBidPoint(1, prices[auction]); //place bid
+                                    bid.addBidPoint(1, prices[auction]-10); //place bid
+                                } else {
+                                    bid.addBidPoint(alloc-2, prices[auction]); //place bid
+                                    bid.addBidPoint(1, prices[auction]-10); //place bid
+                                    bid.addBidPoint(1, prices[auction]-20); //place bid
+                                }
+                            }
+
+                            if (DEBUG) {
+                                    log.finest("submitting bid with alloc="
+                                                    + agent.getAllocation(auction) + " own="
+                                                    + agent.getOwn(auction));
+                            }
+
+                            agent.submitBid(bid); //place bid
 			}
-		} else if (auctionCategory == TACAgent.CAT_FLIGHT) {
+                        
+		} else if (auctionCategory == TACAgent.CAT_FLIGHT) { //flight auction
 			updateFlights(auction);
 		}
 	}
@@ -229,114 +277,265 @@ public class DummyAgent extends AgentImpl {
 		log.fine("*** Auction " + auction + " closed!");
 	}
 
+        /**
+         * initial bids for what we have been allocated.
+         */
 	private void sendBids() {
-		for (int i = 0, n = agent.getAuctionNo(); i < n; i++) {
-			int alloc = agent.getAllocation(i) - agent.getOwn(i);
-			float price = -1f;
-			switch (agent.getAuctionCategory(i)) {
-			case TACAgent.CAT_FLIGHT:
-				if (alloc > 0) {
-					price = FLIGHT_THRESHOLD;
-				}
-				break;
-			case TACAgent.CAT_HOTEL:
-				if (alloc > 0) {
-					price = 200;
-					prices[i] = 200f;
-				}
-				break;
-			case TACAgent.CAT_ENTERTAINMENT:
-				if (alloc < 0) {
-					price = 200;
-					prices[i] = 200f;
-				} else if (alloc > 0) {
-					price = 50;
-					prices[i] = 50f;
-				}
-				break;
-			default:
-				break;
-			}
-			if (price > 0) {
-				Bid bid = new Bid(i);
-				bid.addBidPoint(alloc, price);
-				if (DEBUG) {
-					log.finest("submitting bid with alloc="
-							+ agent.getAllocation(i) + " own="
-							+ agent.getOwn(i));
-				}
-				agent.submitBid(bid);
-			}
-		}
-	}
+            for (int i = 0, n = agent.getAuctionNo(); i < n; i++) {
+                int alloc = agent.getAllocation(i) - agent.getOwn(i);
+                float price = -1f;
+                
+                switch (agent.getAuctionCategory(i)) {
+                   
+                    case TACAgent.CAT_FLIGHT: //manage initial bids for flights
+                        
+                        if (alloc > 0) {
+                            price = FLIGHT_THRESHOLD;
+                        }
+                        break;
+                        
+                    case TACAgent.CAT_HOTEL: //manage initial bids for hotels
+                        
+                        if (alloc > 0) {
+                            price = 200;
+                            prices[i] = 200f;
+                        }
+                        break;
+                        
+                    case TACAgent.CAT_ENTERTAINMENT: //manage initial bids for entertainment
+                        
+                        if (alloc < 0) { //Selling tickets
+                            price = 200; //start price at max: 200
+                            prices[i] = 200f;
 
+                        } else if (alloc > 0) { //buying tickets
+                                price = 50;
+                                prices[i] = 50f;
+                        }
+                        break;
+                        
+                    default:
+                        break;
+                }
+                
+                if (price > 0) { //bidding the prices initiallly
+                    Bid bid = new Bid(i);
+                    bid.addBidPoint(alloc, price);
+                    if (DEBUG) {
+                        log.finest("submitting bid with alloc="
+                                        + agent.getAllocation(i) + " own="
+                                        + agent.getOwn(i));
+                    }
+                    
+                    agent.submitBid(bid);
+                }
+            }
+	}
+        
+        private float calculateBuyingTicketPrice(int alloc){
+            
+            return Math.min(50, 3);
+        }
+        
+                
+        /**
+         * calculates for each client the preferences he has for each category. 
+         */
 	private void calculateAllocation() {
-		for (int i = 0; i < 8; i++) {
-			int inFlight = agent.getClientPreference(i, TACAgent.ARRIVAL);
-			int outFlight = agent.getClientPreference(i, TACAgent.DEPARTURE);
-			int hotel = agent.getClientPreference(i, TACAgent.HOTEL_VALUE);
-			int type;
+                        
+            for (int i = 0; i < 8; i++) { //for every client
+                
+                int inFlight = agent.getClientPreference(i, TACAgent.ARRIVAL);
+                int outFlight = agent.getClientPreference(i, TACAgent.DEPARTURE);
+                int hotel = agent.getClientPreference(i, TACAgent.HOTEL_VALUE);
+                int type; //good (=1) or bad (=0) hotel
+                
+                //--------------------------------------------------------------
+                //================      FLIGHT ALLOCATION      =================
+                //--------------------------------------------------------------
+                
+                // Get the flight preferences auction and remember that we are
+                // going to buy tickets for these days. (inflight=1, outflight=0)
 
-			// Get the flight preferences auction and remember that we are
-			// going to buy tickets for these days. (inflight=1, outflight=0)
+                //put wanted incoming flight into allocation
+                int auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT, TACAgent.TYPE_INFLIGHT, inFlight);
+                agent.setAllocation(auction, agent.getAllocation(auction) +1);
+                
+                //put wanted outcoming flight into allocation
+                auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT, TACAgent.TYPE_OUTFLIGHT, outFlight);
+                agent.setAllocation(auction, agent.getAllocation(auction) + 1);
+                
+                
+                //--------------------------------------------------------------
+                //=================      HOTEL ALLOCATION      =================
+                //--------------------------------------------------------------                
 
-			int auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT,
-					TACAgent.TYPE_INFLIGHT, inFlight);
-			agent.setAllocation(auction, agent.getAllocation(auction) + 1);
-			auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT,
-					TACAgent.TYPE_OUTFLIGHT, outFlight);
-			agent.setAllocation(auction, agent.getAllocation(auction) + 1);
-
-			// if the hotel value is greater than 70 we will select the
-			// expensive hotel (type = 1)
-			if (hotel > 70) {
-				type = TACAgent.TYPE_GOOD_HOTEL;
-			} else {
-				type = TACAgent.TYPE_CHEAP_HOTEL;
-			}
-			// allocate a hotel night for each day that the agent stays
-			for (int d = inFlight; d < outFlight; d++) {
-				auction = agent.getAuctionFor(TACAgent.CAT_HOTEL, type, d);
-				log.finer("Adding hotel for day: " + d + " on " + auction);
-				agent.setAllocation(auction, agent.getAllocation(auction) + 1);
-			}
-
-			int eType = -1;
-			while ((eType = nextEntType(i, eType)) > 0) {
-				auction = bestEntDay(inFlight, outFlight, eType);
-				log.finer("Adding entertainment " + eType + " on " + auction);
-				agent.setAllocation(auction, agent.getAllocation(auction) + 1);
-			}
-		}
+                // if the hotel value is greater than 70 we will select the
+                // expensive hotel (type = 1)
+                if (hotel > 70) {
+                    type = TACAgent.TYPE_GOOD_HOTEL;
+                } else {
+                    type = TACAgent.TYPE_CHEAP_HOTEL;
+                }
+                
+                // allocate a hotel night for each day that the agent stays
+                for (int d = inFlight; d < outFlight; d++) {
+                    auction = agent.getAuctionFor(TACAgent.CAT_HOTEL, type, d);
+                    log.finer("Adding hotel for day: " + d + " on " + auction);
+                    agent.setAllocation(auction, agent.getAllocation(auction) + 1);
+                }
+                
+                //--------------------------------------------------------------
+                //=============      ENTERTAINMENT ALLOCATION      =============
+                //--------------------------------------------------------------
+                
+                //gets a place in auctions for all our wanted tickets (tested!)
+                
+                //client can attend in maximum 3 events, 
+                //even if he stays for 4 nights
+                //since there are only 3 available types of events
+                int range = Math.min((outFlight - inFlight), 3);
+                
+                //stores the events in asceding order (on utility) for client to participate
+                int[] eTypes = new int[range];
+                int[] days = new int[range];                
+                                
+                for (int s=0; s<range; s++){ //initalize the days where he can have a ticket
+                    days[s] = inFlight + s;
+                }
+                
+                //gets the list of events client wants
+                //in agreement with the days he is available in town
+                eTypes = getMostPreferedEvents(i,range);  //i: client , range: number of available entertainment days
+                
+                for(int k=0; k<days.length; k++){ //register the allocation in proper auctions
+                    auction = agent.getAuctionFor(TACAgent.CAT_ENTERTAINMENT, eTypes[k], days[k]); //i: day , type E {AW,AP,MU}
+                                               
+                    log.finer("Adding entertainment " + eTypes[k] + " on " + auction);
+                        agent.setAllocation(auction, agent.getAllocation(auction) + 1);
+                }
+            }
 	}
 
-	private int bestEntDay(int inFlight, int outFlight, int type) {
-		for (int i = inFlight; i < outFlight; i++) {
-			int auction = agent.getAuctionFor(TACAgent.CAT_ENTERTAINMENT, type,
-					i);
-			if (agent.getAllocation(auction) < agent.getOwn(auction)) {
-				return auction;
-			}
-		}
-		// If no left, just take the first...
-		return agent.getAuctionFor(TACAgent.CAT_ENTERTAINMENT, type, inFlight);
+        /**
+         * It calculates the events that client wants to attend in an ascending order.
+         * @param client
+         * @param range
+         * @return array of int with event types ordered by amount of utility
+         */
+        private int[] getMostPreferedEvents(int client, int range) {
+            
+            int e1 = agent.getClientPreference(client, TACAgent.E1); //utility of client for E1: Alligator_Wrestling
+            int e2 = agent.getClientPreference(client, TACAgent.E2); //utility of client for E2: Amusement_park
+            int e3 = agent.getClientPreference(client, TACAgent.E3); //utility of client for E3: Museum
+
+            int[] preferedEvents = new int[range];
+            
+            int max=0;
+            
+            switch (range){
+                case 1: //if client has only 1 day available it selects the 1 event with max utility
+                    max = Math.max(Math.max(e1, e2), e3); 
+                    if(max == e1){
+                        preferedEvents[0]= TACAgent.TYPE_ALLIGATOR_WRESTLING;
+                        //enterUtility[client][0] = e1;
+                    } else if (max == e2 ){
+                        preferedEvents[0]= TACAgent.TYPE_AMUSEMENT;
+                        //enterUtility[client][0] = e2;
+                    } else {
+                        preferedEvents[0]= TACAgent.TYPE_MUSEUM;
+                        //enterUtility[client][0] = e3;
+                    }
+                    break;
+                    
+                case 2: //if client has 2 days available it selects the 2 events with max utilities ordered
+                    if( (e1 >= e2) && (e1 >= e3) ){
+                        preferedEvents[0]= TACAgent.TYPE_ALLIGATOR_WRESTLING;
+                        //enterUtility[client][0] = e1;
+                        if(e2>e3){
+                            preferedEvents[1]= TACAgent.TYPE_AMUSEMENT;
+                            //enterUtility[client][1] = e2;
+                        } else {
+                            preferedEvents[1]= TACAgent.TYPE_MUSEUM;
+                            //enterUtility[client][1] = e3;
+                        }
+                    } else if ( (e2 >= e3) && (e2 >= e1) ){
+                        preferedEvents[0]= TACAgent.TYPE_AMUSEMENT;
+                        //enterUtility[client][0] = e2;
+                        if(e1>e3){
+                            preferedEvents[1]= TACAgent.TYPE_ALLIGATOR_WRESTLING;
+                            //enterUtility[client][1] = e1;
+                        } else {
+                            preferedEvents[1]= TACAgent.TYPE_MUSEUM;
+                            //enterUtility[client][1] = e3;
+                        }
+                    } else  {
+                        preferedEvents[0]= TACAgent.TYPE_MUSEUM;
+                        //enterUtility[client][0] = e3;
+                        if(e1>e2){
+                            preferedEvents[1]= TACAgent.TYPE_ALLIGATOR_WRESTLING;
+                            //enterUtility[client][1] = e1;
+                        } else {
+                            preferedEvents[1]= TACAgent.TYPE_AMUSEMENT;
+                            //enterUtility[client][1] = e2;
+                        }
+                    }
+                    break;
+
+                case 3: //if client has 3 days available it selects the 3 events with max utilities ordered
+                    
+                    if((e1> e2) && (e1>e3)){
+                        preferedEvents[0]= TACAgent.TYPE_ALLIGATOR_WRESTLING;
+                        //enterUtility[client][0] = e1;
+                        if(e2>e3){
+                            preferedEvents[1]= TACAgent.TYPE_AMUSEMENT;
+                            //enterUtility[client][1] = e2;
+                            preferedEvents[2]= TACAgent.TYPE_MUSEUM; 
+                            //enterUtility[client][2] = e3;
+                        } else {
+                            preferedEvents[1]= TACAgent.TYPE_MUSEUM;
+                            //enterUtility[client][1] = e3;
+                            preferedEvents[2]= TACAgent.TYPE_AMUSEMENT;
+                            //enterUtility[client][2] = e2;
+                        }
+                    } else if ((e2>e3) && e2>e1){
+                        preferedEvents[0]= TACAgent.TYPE_AMUSEMENT;
+                        //enterUtility[client][0] = e2;
+                        if(e1>e3){
+                            preferedEvents[1]= TACAgent.TYPE_ALLIGATOR_WRESTLING;
+                            //enterUtility[client][1] = e1;
+                            preferedEvents[2]= TACAgent.TYPE_MUSEUM;
+                            //enterUtility[client][2] = e3;
+                        } else {
+                            preferedEvents[1]= TACAgent.TYPE_MUSEUM;
+                            //enterUtility[client][1] = e3;
+                            preferedEvents[2]= TACAgent.TYPE_ALLIGATOR_WRESTLING;
+                            //enterUtility[client][2] = e1;
+                        }
+                    } else  {
+                        preferedEvents[0]= TACAgent.TYPE_MUSEUM;
+                        //enterUtility[client][0] = e3;
+                        if(e1>e2){
+                            preferedEvents[1]= TACAgent.TYPE_ALLIGATOR_WRESTLING;
+                            //enterUtility[client][1] = e1;
+                            preferedEvents[2]= TACAgent.TYPE_AMUSEMENT;
+                            //enterUtility[client][2] = e2;
+                        } else {
+                            preferedEvents[1]= TACAgent.TYPE_AMUSEMENT;
+                            //enterUtility[client][1] = e2;
+                            preferedEvents[2]= TACAgent.TYPE_ALLIGATOR_WRESTLING;
+                            //enterUtility[client][2] = e1;
+                        }
+                    }                    
+                    break;
+
+                default:
+                    break;
+            }
+
+            return preferedEvents;
 	}
-
-	private int nextEntType(int client, int lastType) {
-		int e1 = agent.getClientPreference(client, TACAgent.E1);
-		int e2 = agent.getClientPreference(client, TACAgent.E2);
-		int e3 = agent.getClientPreference(client, TACAgent.E3);
-
-		// At least buy what each agent wants the most!!!
-		if ((e1 > e2) && (e1 > e3) && lastType == -1)
-			return TACAgent.TYPE_ALLIGATOR_WRESTLING;
-		if ((e2 > e1) && (e2 > e3) && lastType == -1)
-			return TACAgent.TYPE_AMUSEMENT;
-		if ((e3 > e1) && (e3 > e2) && lastType == -1)
-			return TACAgent.TYPE_MUSEUM;
-		return -1;
-	}
-
+        
 	// -------------------------------------------------------------------
 	// Only for backward compability
 	// -------------------------------------------------------------------
@@ -379,3 +578,46 @@ public class DummyAgent extends AgentImpl {
 		}
 	}
 }
+
+/*
+	private int bestEntDay(int inFlight, int outFlight, int type) {
+            
+            for (int i = inFlight; i < outFlight; i++) {
+                    int auction = agent.getAuctionFor(TACAgent.CAT_ENTERTAINMENT, type, i); //i: day , type E {AW,AP,MU}
+                    if (agent.getAllocation(auction) < agent.getOwn(auction)) {
+                            return auction;
+                    }
+            }
+            // If no left, just take the first...
+            return agent.getAuctionFor(TACAgent.CAT_ENTERTAINMENT, type, inFlight);
+	}
+
+	private int nextEntType(int client, int lastType) {
+		int e1 = agent.getClientPreference(client, TACAgent.E1); //utility of client for E1
+		int e2 = agent.getClientPreference(client, TACAgent.E2); //utility of client for E2
+		int e3 = agent.getClientPreference(client, TACAgent.E3); //utility of client for E3
+
+		// At least buy what each agent wants the most!!!
+		if ((e1 > e2) && (e1 > e3) && lastType == -1)
+			return TACAgent.TYPE_ALLIGATOR_WRESTLING;
+		if ((e2 > e1) && (e2 > e3) && lastType == -1)
+			return TACAgent.TYPE_AMUSEMENT;
+		if ((e3 > e1) && (e3 > e2) && lastType == -1)
+			return TACAgent.TYPE_MUSEUM;
+		return -1;
+	}
+ */
+
+/*
+        private int bestEntDay(int inFlight, int outFlight, int type, boolean day) {
+            
+            for (int i = inFlight; i < outFlight; i++) {
+                    int auction = agent.getAuctionFor(TACAgent.CAT_ENTERTAINMENT, type, i); //i: day , type E {AW,AP,MU}
+                    if (agent.getAllocation(auction) < agent.getOwn(auction)) {
+                            return auction;
+                    }
+            }
+            // If no left, just take the first...
+            return agent.getAuctionFor(TACAgent.CAT_ENTERTAINMENT, type, inFlight);
+	}
+*/
