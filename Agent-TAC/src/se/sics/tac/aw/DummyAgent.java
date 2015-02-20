@@ -385,7 +385,7 @@ public class DummyAgent extends AgentImpl {
 				// (FLIGHT_MAXPRICE))) / ((float) agent
 				// .getGameLength()));
 
-				int id = -1;
+				int id = i;
 				if (agent.getGameTimeLeft() <= FLIGHT_TIMELIMIT) {
 					id = checkForDateChange(i);
 				}
