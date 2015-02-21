@@ -139,11 +139,23 @@ public class DummyAgent extends AgentImpl {
 
 	private static final boolean DEBUG = true;
 
-	private static final int FLIGHT_THRESHOLD = 150;
+	private static final int FLIGHT_THRESHOLD = 300; // initial bid price
 
-	private static final int FLIGHT_MAXPRICE = 1000;
+	private static final int FLIGHT_MAXPRICE = 800;
 
-	private static final int FLIGHT_TIMELIMIT = 200000;
+	private static final int FLIGHT_TIMELIMIT = 600000; // ten minutes
+
+	private static final int FLIGHT_PUNISHMENT = 100; // costs of changing date
+
+	private static final int HOTEL_INCREMENT = 10;
+
+	private static final float HOTEL_OVERBID_FACTOR = 1.5f;
+
+	private static final int HOTEL_SATISFACTION_THRESHOLD = 100; // split in two
+																	// groups
+
+	private static final float HOTEL_MAXPRICE = 750; // maxiumum price per room
+														// and night
 
 	private float[] prices;
         
@@ -164,7 +176,16 @@ public class DummyAgent extends AgentImpl {
 					&& quote.getHQW() < alloc) {
 				Bid bid = new Bid(auction);
 				// Can not own anything in hotel auctions...
-				prices[auction] = quote.getAskPrice() + 50;
+				// price pertubation fktn
+				prices[auction] = quote.getAskPrice() * HOTEL_OVERBID_FACTOR
+						+ (alloc - 1) * HOTEL_INCREMENT;
+				// dont buy for a higher price than 500
+				if (prices[auction] > HOTEL_MAXPRICE) {
+					agent.setAllocation(auction, 0);
+					prices[auction] = 0;
+					alloc = 0;
+					allocationUpdated(auction);
+				}
 				bid.addBidPoint(alloc, prices[auction]);
 				if (DEBUG) {
 					log.finest("submitting bid with alloc="
@@ -357,32 +378,30 @@ public class DummyAgent extends AgentImpl {
                 // Get the flight preferences auction and remember that we are
                 // going to buy tickets for these days. (inflight=1, outflight=0)
 
-                //put wanted incoming flight into allocation
-                int auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT, TACAgent.TYPE_INFLIGHT, inFlight);
-                agent.setAllocation(auction, agent.getAllocation(auction) +1);
-                
-                //put wanted outcoming flight into allocation
-                auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT, TACAgent.TYPE_OUTFLIGHT, outFlight);
-                agent.setAllocation(auction, agent.getAllocation(auction) + 1);
-                
-                
+                int auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT,
+					TACAgent.TYPE_INFLIGHT, inFlight);
+			agent.setAllocation(auction, agent.getAllocation(auction) + 1);
+			auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT,
+					TACAgent.TYPE_OUTFLIGHT, outFlight);
+			agent.setAllocation(auction, agent.getAllocation(auction) + 1);
+                        
+                        
                 //--------------------------------------------------------------
                 //=================      HOTEL ALLOCATION      =================
-                //--------------------------------------------------------------                
-
-                // if the hotel value is greater than 70 we will select the
+                //--------------------------------------------------------------     
+                        
+                // if the hotel value is greater than 250 we will select the
                 // expensive hotel (type = 1)
-                if (hotel > 70) {
-                    type = TACAgent.TYPE_GOOD_HOTEL;
+                if (hotel > HOTEL_SATISFACTION_THRESHOLD) {
+                        type = TACAgent.TYPE_GOOD_HOTEL;
                 } else {
-                    type = TACAgent.TYPE_CHEAP_HOTEL;
+                        type = TACAgent.TYPE_CHEAP_HOTEL;
                 }
-                
                 // allocate a hotel night for each day that the agent stays
                 for (int d = inFlight; d < outFlight; d++) {
-                    auction = agent.getAuctionFor(TACAgent.CAT_HOTEL, type, d);
-                    log.finer("Adding hotel for day: " + d + " on " + auction);
-                    agent.setAllocation(auction, agent.getAllocation(auction) + 1);
+                        auction = agent.getAuctionFor(TACAgent.CAT_HOTEL, type, d);
+                        log.finer("Adding hotel for day: " + d + " on " + auction);
+                        agent.setAllocation(auction, agent.getAllocation(auction) + 1);
                 }
                 
                 //--------------------------------------------------------------
@@ -559,24 +578,108 @@ public class DummyAgent extends AgentImpl {
 		if (agent.getAuctionCategory(i) == TACAgent.CAT_FLIGHT) {
 			if (alloc > 0) {
 				log.severe("ASK:" + agent.getQuote(i).getAskPrice());
-				prices[i] = (((float) (agent.getGameTime() * (FLIGHT_MAXPRICE))) / ((float) agent
-						.getGameLength()));
+				// prices[i] = (((float) (agent.getGameTime() *
+				// (FLIGHT_MAXPRICE))) / ((float) agent
+				// .getGameLength()));
 
+				int id = i;
 				if (agent.getGameTimeLeft() <= FLIGHT_TIMELIMIT) {
-					prices[i] = FLIGHT_MAXPRICE;
+					id = checkForDateChange(i);
 				}
 
-				Bid bid = new Bid(i);
-				bid.addBidPoint(alloc, prices[i]);
+				Bid bid = new Bid(id);
+				bid.addBidPoint(alloc, prices[id]);
 				if (DEBUG) {
 					log.severe("submitting bid with alloc="
-							+ agent.getAllocation(i) + " own="
-							+ agent.getOwn(i));
+							+ agent.getAllocation(id) + " own="
+							+ agent.getOwn(id));
 				}
 				agent.submitBid(bid);
 			}
 		}
 	}
+        
+        /**
+	 * Method checks, if its actually better to change the flight date, if the
+	 * saved amount is greater than the clients dissatisfaction.
+	 * 
+	 * @param i
+	 *            the auction id
+	 * 
+	 * @return the new auction id for the specific goods
+	 */
+	private int checkForDateChange(int i) {
+		int alloc = agent.getAllocation(i) - agent.getOwn(i);
+		if (agent.getAuctionCategory(i) == TACAgent.CAT_FLIGHT && alloc > 0) {
+			int type = agent.getAuctionType(i);
+			int change = 0;
+			// fly one day later if inflight, one date earlier if outflight
+			if (type == TACAgent.TYPE_INFLIGHT)
+				change = 1;
+			else if (type == TACAgent.TYPE_OUTFLIGHT)
+				change = -1;
+
+			int altauction = agent.getAuctionFor(agent.getAuctionCategory(i),
+					agent.getAuctionType(i), agent.getAuctionDay(i) + change);
+			// if the price difference is greater than the dissatisfaction value
+			if (agent.getQuote(i).getAskPrice()
+					- agent.getQuote(altauction).getAskPrice() > FLIGHT_PUNISHMENT) {
+				// get flight on other day
+				agent.setAllocation(altauction, agent.getAllocation(altauction)
+						+ alloc);
+				agent.setAllocation(i, agent.getAllocation(i) - alloc);
+
+				// decrease allocation for hotels
+				// for now it just decreases any allocs it finds (starting with
+				// good hotel) independent of preferences
+				int cheap = agent.getAuctionFor(TACAgent.CAT_HOTEL,
+						TACAgent.TYPE_CHEAP_HOTEL, agent.getAuctionDay(i));
+				int exp = agent.getAuctionFor(TACAgent.CAT_HOTEL,
+						TACAgent.TYPE_GOOD_HOTEL, agent.getAuctionDay(i));
+				int curralloc = agent.getAllocation(exp);
+				if (curralloc >= alloc) {
+					agent.setAllocation(exp, curralloc - alloc);
+				} else {
+					alloc = alloc - curralloc;
+					agent.setAllocation(exp, 0);
+					agent.setAllocation(cheap, agent.getAllocation(cheap)
+							- alloc);
+				}
+				// inform of update
+				allocationUpdated(cheap);
+				allocationUpdated(exp);
+
+				// change the auction id to handle
+				i = altauction;
+			}
+
+		}
+		prices[i] = FLIGHT_MAXPRICE;
+		return i;
+
+	}
+
+	/**
+	 * Method is called, if the allocation of the given auctions was updated.
+	 * (E.g. the flight were scheduled different and the allocation for this
+	 * hotels may have or may have not changed (increasing or decreasing))
+	 * 
+	 * @param id
+	 *            the auction id
+	 */
+	private void allocationUpdated(int id) {
+		int need = agent.getAllocation(id) - agent.getOwn(id);
+		int bids = agent.getBid(id).getQuantity();
+		if (need != bids) {
+			Bid bid = new Bid(id);
+			bid.addBidPoint(need, prices[id]);
+			if (DEBUG) {
+				log.finest("submitting bid with alloc="
+						+ agent.getAllocation(id) + " own=" + agent.getOwn(id));
+			}
+			agent.replaceBid(agent.getBid(id), bid);
+		}
+	}        
 }
 
 /*
