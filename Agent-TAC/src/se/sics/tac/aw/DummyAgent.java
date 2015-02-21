@@ -151,11 +151,9 @@ public class DummyAgent extends AgentImpl {
 
 	private static final float HOTEL_OVERBID_FACTOR = 1.5f;
 
-	private static final int HOTEL_SATISFACTION_THRESHOLD = 100; // split in two
-																	// groups
+	private static final int HOTEL_SATISFACTION_THRESHOLD = 100; // split in two groups
 
-	private static final float HOTEL_MAXPRICE = 750; // maxiumum price per room
-														// and night
+	private static final float HOTEL_MAXPRICE = 750; // maxiumum price per room and night
 
 	private float[] prices;
         
@@ -371,67 +369,70 @@ public class DummyAgent extends AgentImpl {
                 int hotel = agent.getClientPreference(i, TACAgent.HOTEL_VALUE);
                 int type; //good (=1) or bad (=0) hotel
                 
-                //--------------------------------------------------------------
-                //================      FLIGHT ALLOCATION      =================
-                //--------------------------------------------------------------
-                
-                // Get the flight preferences auction and remember that we are
-                // going to buy tickets for these days. (inflight=1, outflight=0)
+                if ((outFlight - inFlight) < 3){
+                    
+                    //--------------------------------------------------------------
+                    //================      FLIGHT ALLOCATION      =================
+                    //--------------------------------------------------------------
 
-                int auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT,
-					TACAgent.TYPE_INFLIGHT, inFlight);
-			agent.setAllocation(auction, agent.getAllocation(auction) + 1);
-			auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT,
-					TACAgent.TYPE_OUTFLIGHT, outFlight);
-			agent.setAllocation(auction, agent.getAllocation(auction) + 1);
-                        
-                        
-                //--------------------------------------------------------------
-                //=================      HOTEL ALLOCATION      =================
-                //--------------------------------------------------------------     
-                        
-                // if the hotel value is greater than 250 we will select the
-                // expensive hotel (type = 1)
-                if (hotel > HOTEL_SATISFACTION_THRESHOLD) {
-                        type = TACAgent.TYPE_GOOD_HOTEL;
-                } else {
-                        type = TACAgent.TYPE_CHEAP_HOTEL;
-                }
-                // allocate a hotel night for each day that the agent stays
-                for (int d = inFlight; d < outFlight; d++) {
-                        auction = agent.getAuctionFor(TACAgent.CAT_HOTEL, type, d);
-                        log.finer("Adding hotel for day: " + d + " on " + auction);
-                        agent.setAllocation(auction, agent.getAllocation(auction) + 1);
-                }
-                
-                //--------------------------------------------------------------
-                //=============      ENTERTAINMENT ALLOCATION      =============
-                //--------------------------------------------------------------
-                
-                //gets a place in auctions for all our wanted tickets (tested!)
-                
-                //client can attend in maximum 3 events, 
-                //even if he stays for 4 nights
-                //since there are only 3 available types of events
-                int range = Math.min((outFlight - inFlight), 3);
-                
-                //stores the events in asceding order (on utility) for client to participate
-                int[] eTypes = new int[range];
-                int[] days = new int[range];                
-                                
-                for (int s=0; s<range; s++){ //initalize the days where he can have a ticket
-                    days[s] = inFlight + s;
-                }
-                
-                //gets the list of events client wants
-                //in agreement with the days he is available in town
-                eTypes = getMostPreferedEvents(i,range);  //i: client , range: number of available entertainment days
-                
-                for(int k=0; k<days.length; k++){ //register the allocation in proper auctions
-                    auction = agent.getAuctionFor(TACAgent.CAT_ENTERTAINMENT, eTypes[k], days[k]); //i: day , type E {AW,AP,MU}
-                                               
-                    log.finer("Adding entertainment " + eTypes[k] + " on " + auction);
-                        agent.setAllocation(auction, agent.getAllocation(auction) + 1);
+                    // Get the flight preferences auction and remember that we are
+                    // going to buy tickets for these days. (inflight=1, outflight=0)
+
+                    int auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT,
+                                            TACAgent.TYPE_INFLIGHT, inFlight);
+                            agent.setAllocation(auction, agent.getAllocation(auction) + 1);
+                            auction = agent.getAuctionFor(TACAgent.CAT_FLIGHT,
+                                            TACAgent.TYPE_OUTFLIGHT, outFlight);
+                            agent.setAllocation(auction, agent.getAllocation(auction) + 1);
+
+
+                    //--------------------------------------------------------------
+                    //=================      HOTEL ALLOCATION      =================
+                    //--------------------------------------------------------------     
+
+                    // if the hotel value is greater than 250 we will select the
+                    // expensive hotel (type = 1)
+                    if (hotel > HOTEL_SATISFACTION_THRESHOLD) {
+                            type = TACAgent.TYPE_GOOD_HOTEL;
+                    } else {
+                            type = TACAgent.TYPE_CHEAP_HOTEL;
+                    }
+                    // allocate a hotel night for each day that the agent stays
+                    for (int d = inFlight; d < outFlight; d++) {
+                            auction = agent.getAuctionFor(TACAgent.CAT_HOTEL, type, d);
+                            log.finer("Adding hotel for day: " + d + " on " + auction);
+                            agent.setAllocation(auction, agent.getAllocation(auction) + 1);
+                    }
+
+                    //--------------------------------------------------------------
+                    //=============      ENTERTAINMENT ALLOCATION      =============
+                    //--------------------------------------------------------------
+
+                    //gets a place in auctions for all our wanted tickets (tested!)
+
+                    //client can attend in maximum 3 events, 
+                    //even if he stays for 4 nights
+                    //since there are only 3 available types of events
+                    int range = Math.min((outFlight - inFlight), 3);
+
+                    //stores the events in asceding order (on utility) for client to participate
+                    int[] eTypes = new int[range];
+                    int[] days = new int[range];                
+
+                    for (int s=0; s<range; s++){ //initalize the days where he can have a ticket
+                        days[s] = inFlight + s;
+                    }
+
+                    //gets the list of events client wants
+                    //in agreement with the days he is available in town
+                    eTypes = getMostPreferedEvents(i,range);  //i: client , range: number of available entertainment days
+
+                    for(int k=0; k<days.length; k++){ //register the allocation in proper auctions
+                        auction = agent.getAuctionFor(TACAgent.CAT_ENTERTAINMENT, eTypes[k], days[k]); //i: day , type E {AW,AP,MU}
+
+                        log.finer("Adding entertainment " + eTypes[k] + " on " + auction);
+                            agent.setAllocation(auction, agent.getAllocation(auction) + 1);
+                    }
                 }
             }
 	}
