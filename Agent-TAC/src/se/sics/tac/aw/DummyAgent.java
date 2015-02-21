@@ -145,7 +145,8 @@ public class DummyAgent extends AgentImpl {
 
 	private static final int FLIGHT_TIMELIMIT = 600000; // ten minutes
 
-	private static final int FLIGHT_PUNISHMENT = 1000; // costs of changing date (100)
+	private static final int FLIGHT_PUNISHMENT = 1000; // costs of changing date
+														// (100)
 
 	private static final int HOTEL_INCREMENT = 10;
 
@@ -192,7 +193,8 @@ public class DummyAgent extends AgentImpl {
 							+ agent.getAllocation(auction) + " own="
 							+ agent.getOwn(auction));
 				}
-				agent.submitBid(bid);
+				agent.replaceBid(quote.getBid(), bid);
+
 			}
 
 		} else if (auctionCategory == TACAgent.CAT_ENTERTAINMENT) { // Entertainment
@@ -631,6 +633,10 @@ public class DummyAgent extends AgentImpl {
 							+ agent.getAllocation(id) + " own="
 							+ agent.getOwn(id));
 				}
+				agent.submitBid(bid);
+			} else {
+				Bid bid = new Bid(i);
+				bid.addBidPoint(0, 0);
 				agent.submitBid(bid);
 			}
 		}
