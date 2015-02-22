@@ -145,7 +145,7 @@ public class DummyAgent extends AgentImpl {
 
 	private static final int FLIGHT_TIMELIMIT = 600000; // ten minutes
 
-	private static final int FLIGHT_PUNISHMENT = 1000; // costs of changing date
+	private static final int FLIGHT_PUNISHMENT = 100; // costs of changing date
 														// (100)
 
 	private static final int HOTEL_INCREMENT = 10;
@@ -155,7 +155,7 @@ public class DummyAgent extends AgentImpl {
 	private static final int HOTEL_SATISFACTION_THRESHOLD = 100; // split in two
 																	// groups
 
-	private static final float HOTEL_MAXPRICE = 1200; // maxiumum price per room
+	private static final float HOTEL_MAXPRICE = 750; // maxiumum price per room
 														// and night (750)
 
 	private float[] prices;
@@ -633,11 +633,11 @@ public class DummyAgent extends AgentImpl {
 							+ agent.getAllocation(id) + " own="
 							+ agent.getOwn(id));
 				}
-				agent.submitBid(bid);
+				agent.replaceBid(agent.getBid(i), bid);
 			} else {
 				Bid bid = new Bid(i);
 				bid.addBidPoint(0, 0);
-				agent.submitBid(bid);
+				agent.replaceBid(agent.getBid(i), bid);
 			}
 		}
 	}
