@@ -175,7 +175,7 @@ public class DummyAgent extends AgentImpl {
                 agent.getBid(auction).setReplacing(bid);
                 //agent.replaceBid(agent.getBid(auction), bid);
             }
-
+            
         } else if (auctionCategory == TACAgent.CAT_ENTERTAINMENT) { // Entertainment auction
 
             // calculates the number of tickets we want to buy or sell and
@@ -560,6 +560,7 @@ public class DummyAgent extends AgentImpl {
     public static void main(String[] args) {
         TACAgent.main(args);
     }
+
 
     // -------------------------------------------------------------------
     // Functions on Flights
