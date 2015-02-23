@@ -644,7 +644,9 @@ public class DummyAgent extends AgentImpl {
 					agent.getAuctionType(i), agent.getAuctionDay(i) + change);
 			// if the price difference is greater than the dissatisfaction value
 			if (agent.getQuote(i).getAskPrice()
-					- agent.getQuote(altauction).getAskPrice() > FLIGHT_PUNISHMENT) {
+					- agent.getQuote(altauction).getAskPrice() > FLIGHT_PUNISHMENT
+					&& agent.getAuctionDay(altauction) != 1
+					&& agent.getAuctionDay(altauction) != 5) {
 				// get flight on other day
 				agent.setAllocation(altauction, agent.getAllocation(altauction)
 						+ alloc);
