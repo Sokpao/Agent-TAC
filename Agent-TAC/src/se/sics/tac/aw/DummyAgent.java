@@ -112,7 +112,7 @@ public class DummyAgent extends AgentImpl {
 
 	private static final boolean DEBUG = true;
 
-	private static final int FLIGHT_THRESHOLD = 300; // initial bid price
+	private static final int FLIGHT_THRESHOLD = 330; // initial bid price
 
 	private static final int FLIGHT_MAXPRICE = 800;
 
@@ -128,7 +128,7 @@ public class DummyAgent extends AgentImpl {
 	private static final int HOTEL_SATISFACTION_THRESHOLD = 100; // split in two
 																	// groups
 
-	private static final float HOTEL_MAXPRICE = 600; // maxiumum price per room
+	private static final float HOTEL_MAXPRICE = 750; // maxiumum price per room
 														// and night (750)
 
 	private float[] prices;
